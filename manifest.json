@@ -1,0 +1,21 @@
+
+{
+  "name": "DIN Properties Portal",
+  "short_name": "DIN Portal",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/initials/svg?seed=DIN&backgroundColor=0f172a",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/initials/svg?seed=DIN&backgroundColor=0f172a",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
