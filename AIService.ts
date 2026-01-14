@@ -1,19 +1,10 @@
 
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { PropertyFile, User, Transaction } from "./types";
-
-/**
- * Initializes the AI client using the environment key.
- * Strictly adheres to the requirement of using process.env.API_KEY.
- */
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
  * Generates an institutional summary of a user's portfolio.
  */
 export const generateSmartSummary = async (user: User, files: PropertyFile[]) => {
-  const ai = getAI();
-  
   const context = files.map(f => ({
     id: f.fileNo,
     owner: f.ownerName,
@@ -35,11 +26,20 @@ export const generateSmartSummary = async (user: User, files: PropertyFile[]) =>
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: [{ parts: [{ text: prompt }] }],
+    const response = await fetch('/api/ai', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ prompt })
     });
-    return response.text;
+
+    if (!response.ok) {
+      throw new Error(`AI service error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
   } catch (error) {
     console.error("AI Summary Error:", error);
     return "Analysis suspended. Registry synchronization required.";
@@ -48,46 +48,28 @@ export const generateSmartSummary = async (user: User, files: PropertyFile[]) =>
 
 /**
  * Streams chat responses with role-based system instructions.
+ * Note: This implementation makes a single request to the backend since true streaming
+ * requires more complex WebSocket implementation.
  */
 export async function* streamChatResponse(message: string, role: string, contextData: any[]) {
-  const ai = getAI();
-  const chat = ai.chats.create({
-    model: 'gemini-3-flash-preview',
-    config: {
-      systemInstruction: `
-        You are the DIN Properties Secure Registry Assistant.
-        CURRENT USER ROLE: ${role}
-
-        IF ROLE IS ADMIN:
-        - You are the Global Portfolio Supervisor.
-        - You have full access to ALL property files and transactions.
-        - You can perform global audits, identify collection trends, and list defaults across all clients.
-        - Always include Owner Names in your tables.
-
-        IF ROLE IS CLIENT:
-        - You are a Private Ledger Auditor.
-        - You only see the user's personal property files.
-        - Focus on explaining installments, upcoming due dates, and payment history.
-
-        STRICT FORMATTING:
-        1. Use ALL CAPS for headers.
-        2. NO STARS (**) or BOLDING.
-        3. Use Markdown Tables for financial data.
-        4. Columns for Admin: | OWNER | FILE ID | SIZE | DUE DATE | OVERDUE (PKR) |
-        5. Columns for Client: | DESCRIPTION | DUE DATE | PAYABLE (PKR) | PAID (PKR) | BALANCE (PKR) |
-
-        DATA CONTEXT: ${JSON.stringify(contextData)}
-      `,
-    }
-  });
-
   try {
-    const result = await chat.sendMessageStream({ message });
-    for await (const chunk of result) {
-      // Cast chunk to GenerateContentResponse as per SDK guidelines to access .text property
-      const c = chunk as GenerateContentResponse;
-      yield c.text;
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ message, role, contextData })
+    });
+
+    if (!response.ok) {
+      throw new Error(`AI service error: ${response.status}`);
     }
+
+    const data = await response.json();
+    const fullResponse = data.choices[0].message.content;
+    
+    // Yield the entire response as a single chunk since we're not doing true streaming
+    yield fullResponse;
   } catch (error) {
     console.error("Streaming Error:", error);
     throw error;
